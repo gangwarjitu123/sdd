@@ -19,4 +19,7 @@ public class Role {
     @Column(name = "role_name")
     private String roleName;
 
+    @Column(name = "role_level")
+    private Integer level;
+
 }

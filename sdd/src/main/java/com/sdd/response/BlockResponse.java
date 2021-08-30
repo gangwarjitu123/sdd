@@ -3,6 +3,9 @@ package com.sdd.response;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+import java.util.Set;
+
 @Getter
 @Setter
 public class BlockResponse {
@@ -12,10 +15,11 @@ public class BlockResponse {
 
     private String healthBlockName;
 
-    private Integer districtId;
+    private Integer districtCode;
 
     private Integer talukaId;
 
     private Integer mddsCode;
 
+   private Integer stateId;
 }

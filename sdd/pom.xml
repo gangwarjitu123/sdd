@@ -8,7 +8,6 @@
         <version>2.5.3</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <packaging>war</packaging>
     <groupId>com.sdd</groupId>
     <artifactId>sdd</artifactId>
     <version>0.0.1-SNAPSHOT</version>
@@ -49,10 +48,12 @@
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-tomcat</artifactId>
-            <scope>provided</scope>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt</artifactId>
+            <version>0.9.1</version>
         </dependency>
+
+
 
 
 

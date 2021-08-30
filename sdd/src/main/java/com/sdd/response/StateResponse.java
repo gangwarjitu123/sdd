@@ -7,8 +7,9 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-@Builder
+
 @Data
+@Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class StateResponse implements Serializable {
     private Integer stateId;

@@ -20,12 +20,7 @@ public class State {
     @Column(name = "state_name")
     private String stateName;
 
-    @ManyToOne()
-    @JoinColumn(name = "country_id")
-    @JsonIgnore
-    private  Country country;
-
-    @OneToMany(mappedBy = "state")
-    private Set<District> districtSet;
+    @Column(name = "country_id")
+    private  Integer countryId;
 
 }

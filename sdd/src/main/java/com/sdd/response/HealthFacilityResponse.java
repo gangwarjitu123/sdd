@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+import java.util.Set;
+
 @Getter
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -11,9 +14,11 @@ public class HealthFacilityResponse {
     private Integer healthFacilityId;
     private Integer healthFacilityCode;
     private String healthFacilityName;
-    private Integer districtId;
+    private Integer districtCode;
     private Integer talukaId;
-    private Integer healthBlockId;
+    private Integer healthBlockCode;
     private Integer healthFacilityTypeId;
-    private HealthFacilityTypeResponse healthFacilityTypeData;
+
+
+
 }

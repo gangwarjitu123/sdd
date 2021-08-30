@@ -6,15 +6,17 @@ import lombok.Setter;
 @Getter
 @Setter
 public class UserCreateRequest {
+
     private String name;
     private String email;
     private String mobileNumber;
     private Integer roleId;
-    private Integer districtId;
+    private Integer districtCode;
     private Integer stateId;
-    private Integer blockId;
-    private Integer facilityId;
+    private Integer blockCode;
+    private Integer facilityCode;
     private Integer facilityTypeId;
     private String password;
+    private Integer subFacilityCode;
 
 }

@@ -3,17 +3,21 @@ package com.sdd.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.sdd.entities.*;
-import com.sdd.entities.repository.DistrictRepository;
-import com.sdd.entities.repository.RoleRepository;
-import com.sdd.entities.repository.UserRepository;
+import com.sdd.entities.repository.*;
 import com.sdd.exception.SDDException;
+import com.sdd.helper.AbstractUserRegistrationHelper;
+import com.sdd.helper.UserRegistrationFactory;
+import com.sdd.jwt.HeaderUtils;
+import com.sdd.jwt.JwtUtils;
 import com.sdd.login.LoginRequest;
 import com.sdd.request.UserCreateRequest;
 import com.sdd.response.*;
+import com.sdd.utils.ConverterUtils;
 import com.sdd.utils.ResponseUtils;
 import com.sdd.validator.AbstractUserValidator;
 import com.sdd.validator.ValidatorFactory;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,12 +32,12 @@ import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService{
-    @Autowired
-    private DistrictRepository districtRepository;
+
 
     @Autowired
-    private ValidatorFactory validatorFactory;
+    private DistrictRepository districtRepository;
 
     @Autowired
     private RoleRepository roleRepository;
@@ -42,52 +46,173 @@ public class UserServiceImpl implements UserService{
     private UserRepository userRepository;
 
 
+    @Autowired
+    private LoginRepository loginRepository;
+
+    @Autowired
+    private StateRepository stateRepository;
+
+    @Autowired
+    private BlockRepository blockRepository;
+
+    @Autowired
+    private HealthFacilityRepository healthFacilityRepository;
+
+    @Autowired
+    private HealthSubFacilityRepository healthSubFacilityRepository;
+
+
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    @Autowired
+    private HeaderUtils headerUtils;
+
+    @Autowired
+    private UserRegistrationFactory userRegistrationFactory;
+
+    @Autowired
+    private VillageRepository villageRepository;
+
+    @Autowired
+    private FacilityTypeRepository facilityTypeRepository;
+
+
 
 
 
     @Override
-    public ApiResponse<UserResponse> createUser( UserCreateRequest userCreateRequest) {
+    public ApiResponse<LoginResponse> login(LoginRequest loginRequest) {
+        String userName = loginRequest.getUsername();
+        String password = loginRequest.getPassword();
+        User user = userRepository.findByEmail(userName);
+        if(ObjectUtils.isEmpty(user) || (!password.equals(user.getPassword()))){
+            log.info("[login] user login  failed ");
+            throw new SDDException(HttpStatus.BAD_REQUEST.value(), "incorrect username or password");
+        }
+        LoginDetails loginDetails = new LoginDetails();
+        loginDetails.setUserId(user.getId());
+        loginDetails.setLevel(user.getLevel());
+        loginDetails.setRoleId(user.getRoleId());
+        loginDetails.setCreatedDate(new Date());
+        loginDetails.setModifiedDate(new Date());
+
+        LoginDetails loginDetailsResponse = loginRepository.save(loginDetails);
+        String jwtToken = jwtUtils.generateJwtToken(loginDetailsResponse);
+        LoginResponse loginResponse = LoginResponse.builder().build();
+        loginResponse.setUserLevel(user.getLevel());
+        loginResponse.setUseName(user.getEmail());
+        loginResponse.setToken(jwtToken);
+        return ResponseUtils.createSuccessResponse(loginResponse, new TypeReference<LoginResponse>() {});
+    }
+
+    @Override
+    public ApiResponse<AdminResponse> admin(LoginRequest loginRequest) {
+         loginRequest.setUsername(loginRequest.getUserId());
+         ApiResponse<LoginResponse> loginResponseApiResponse = login(loginRequest);
+         if(loginResponseApiResponse==null || loginResponseApiResponse.getStatus()!=200){
+             throw new SDDException(HttpStatus.UNAUTHORIZED.value(),"login failed");
+         }
+         if(loginResponseApiResponse.getResponse().getUserLevel()!= 0){
+             throw new SDDException(HttpStatus.UNAUTHORIZED.value(),"only admin is allow to login by app");
+         }
+         User adminUserResponse = userRepository.findByEmail(loginResponseApiResponse.getResponse().getUseName());
+         AdminResponse adminResponse = new AdminResponse();
+         adminResponse.setId(adminUserResponse.getId());
+         adminResponse.setUserId(adminUserResponse.getEmail());
+         adminResponse.setMobileNumber(adminUserResponse.getMobileNumber());
+         adminResponse.setBlockCode(adminUserResponse.getBlockCode());
+         adminResponse.setName(adminUserResponse.getName());
+
+         // stateDtaa
+        Optional<State> state = stateRepository.findById(adminUserResponse.getStateId());
+        adminResponse.setStateCode(adminUserResponse.getStateId());
+        adminResponse.setStateName(state.get().getStateName());
+
+        //district data
+        adminResponse.setDistrictCode(adminUserResponse.getDistrictCode());
+        Optional<District> districtOptional = districtRepository.findByDistrictCodeAndStateId(adminUserResponse.getDistrictCode(),adminUserResponse.getStateId());
+        adminResponse.setDistrictName(districtOptional.get().getDistrictName());
+
+         // block data
+         Block block = blockRepository.findAllByDistrictCodeAndStateIdAndHealthBlockCode(adminUserResponse.getDistrictCode(),
+                 adminUserResponse.getStateId(),adminUserResponse.getBlockCode());
+        adminResponse.setBlockName(block.getHealthBlockName());
+        adminResponse.setBlockCode(block.getHealthBlockCode());
+
+        HealthFacility healthFacility = healthFacilityRepository.findAllByStateIdAndHealthBlockCodeAndDistrictCodeAndHealthFacilityCode(adminUserResponse.getStateId(),adminUserResponse.getBlockCode(),adminUserResponse.getDistrictCode(),adminUserResponse.getFacilityCode());
+        adminResponse.setFacilityCode(healthFacility.getHealthFacilityCode());
+        adminResponse.setFacilityName(healthFacility.getHealthFacilityName());
+
+        Optional<HealthFacilityType> healthFacilityTypeOptional = facilityTypeRepository.findById(healthFacility.getHealthFacilityTypeId());
+
+        if(healthFacilityTypeOptional.isPresent()){
+            adminResponse.setFacilityTypeName(healthFacilityTypeOptional.get().getFacilityTypeName());
+            adminResponse.setFacilityTypeId(healthFacilityTypeOptional.get().getFacilityTypeId());
+        }
+
+        if(!ObjectUtils.isEmpty(adminUserResponse.getSubFacilityCode())){
+           HealthSubFacility healthSubFacility =  healthSubFacilityRepository.findByHealthFacilityCodeAndHealthFacilitySubCode(adminUserResponse.getFacilityCode(),adminUserResponse.getSubFacilityCode());
+           adminResponse.setSubFacilityCode(healthSubFacility.getHealthFacilitySubCode());
+           adminResponse.setSubFacilityName(healthSubFacility.getHealthSubCenterName());
+
+          List<Village> villages = villageRepository.findByHealthFacilityIdAndHealthSubFacilityId(adminUserResponse.getFacilityCode(),adminUserResponse.getSubFacilityCode());
+          List<VillageResponse> villageResponses = new ArrayList<>();
+          if(!CollectionUtils.isEmpty(villages)){
+              VillageResponse villageResponse = new VillageResponse();
+              villages.forEach(village -> {
+                  villageResponse.setId(village.getId());
+                  villageResponse.setName(village.getName());
+                  villageResponse.setSid(adminUserResponse.getSubFacilityCode());
+                  villageResponses.add(villageResponse);
+              });
+          }
+           adminResponse.setVillage(villageResponses);
+        }
+
+        return ResponseUtils.createSuccessResponse(adminResponse,new TypeReference<AdminResponse>(){});
+    }
+
+
+    @Override
+    public ApiResponse<UserResponse> createUser(UserCreateRequest userCreateRequest) {
+        String token  =  headerUtils.getTokeFromHeader();
+        String tokenWithUsername = jwtUtils.getUserNameFromJwtToken(token);
+        Map<String,Integer> currentLoggedInUser = headerUtils.getUserCurrentDetails(tokenWithUsername);
+
+        if(ObjectUtils.isEmpty(userCreateRequest.getRoleId())){
+            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"ROLE CAN'T BE NULL");
+        }
         Optional<Role> roleOptional = roleRepository.findById(userCreateRequest.getRoleId());
         if(!roleOptional.isPresent()){
             throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid role");
         }
-        AbstractUserValidator abstractUserValidator = validatorFactory.getValidator(roleOptional.get().getRoleName());
-        abstractUserValidator.validate(userCreateRequest);
-        Optional<District> optionalDistrict =  districtRepository.findById(userCreateRequest.getDistrictId());
-
+        if(currentLoggedInUser.get(HeaderUtils.LEVEL)>=roleOptional.get().getLevel()){
+            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"logged in user not allowed create this user");
+        }
+        Optional<District> optionalDistrict =  districtRepository.findByDistrictCodeAndStateId(userCreateRequest.getDistrictCode(),userCreateRequest.getStateId());
         if(!optionalDistrict.isPresent()){
             throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid district");
         }
         Role role = roleOptional.get();
-        District  district = optionalDistrict.get();
-        State state =  optionalDistrict.get().getState();
-        if(state==null || state.getId()!=userCreateRequest.getStateId()){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid state");
-        }
         User user = new User();
-        user.setStateId(district.getState().getId());
-        user.setDistrictId(district.getDistrictId());
-        user.setEmail(userCreateRequest.getEmail());
-        user.setName(userCreateRequest.getName());
-        user.setMobileNumber(userCreateRequest.getMobileNumber());
-        user.setPassword(userCreateRequest.getPassword());
+        //validate herirecy
         user.setRoleId(role.getRoleId());
-
-        if(role.getRoleName().equalsIgnoreCase("CHO")){
-            validateBlockId(district,userCreateRequest);
-            user.setBlockId(userCreateRequest.getBlockId());
-            validateFacilityId(district,userCreateRequest);
-            user.setFacilityId(userCreateRequest.getFacilityId());
-
-        }else if(role.getRoleName().equalsIgnoreCase("DISTRICT")){
-               // nothing will change in user as state and district already populated
-        }else if(role.getRoleName().equalsIgnoreCase("BLOCK")){
-            validateBlockId(district,userCreateRequest);
-            user.setBlockId(userCreateRequest.getBlockId());
-        }else if(role.getRoleName().equalsIgnoreCase("STATE")){
-           // Not implemented yet
+        user.setLevel(role.getLevel());
+        user.setCreatedBy(currentLoggedInUser.get(HeaderUtils.USER_ID));
+        AbstractUserRegistrationHelper abstractUserRegistrationHelper =  userRegistrationFactory.getUserRegistrationHelper(role);
+        abstractUserRegistrationHelper.createUserForRegistration(userCreateRequest,user);
+        User duplicates = userRepository.findByEmail(userCreateRequest.getEmail());
+        User duplicates1 = userRepository.findByMobileNumber(userCreateRequest.getMobileNumber());
+        if(!ObjectUtils.isEmpty(duplicates) || !ObjectUtils.isEmpty(duplicates1)){
+            throw new SDDException(HttpStatus.ALREADY_REPORTED.value(), "email or phone already found in db");
         }
-        user = userRepository.save(user);
+        try {
+            user = userRepository.save(user);
+        }catch (Exception exception){
+            exception.printStackTrace();
+            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid data found in the request");
+        }
 
         UserResponse userResponse = new UserResponse();
         userResponse.setGmail(user.getEmail());
@@ -102,125 +227,64 @@ public class UserServiceImpl implements UserService{
 
     @Override
     public ApiResponse<List<UserResponse>> getAllUsers() {
+        String token = headerUtils.getTokeFromHeader();
+        String tokenWithUsername = jwtUtils.getUserNameFromJwtToken(token);
+        Map<String, Integer> currentLoggedInUser = headerUtils.getUserCurrentDetails(tokenWithUsername);
         List<UserResponse> userResponses = new ArrayList<>();
-        List<User> userList = userRepository.findAll();
-        if(!CollectionUtils.isEmpty(userList)){
-            List<Integer> districtId = new ArrayList<>();
-            List<Integer> roleIds = new ArrayList<>();
-            userList.forEach(user -> {
-                        districtId.add(user.getDistrictId());
-                        roleIds.add(user.getRoleId());
-                    });
-            List<District> districts = districtRepository.findAllById(districtId);
-            List<Role> roleList = roleRepository.findAllById(roleIds);
-            Map<Integer,District> districtMap = new HashMap<>();
-            AtomicReference<Map<Integer, Block>> blockMap = new AtomicReference<Map<Integer, Block>>();
-            AtomicReference<Map<Integer,HealthFacility>> healthFacilityMap = new AtomicReference<Map<Integer,HealthFacility>>();
-            AtomicReference<Map<Integer,Role>> roleMap = new AtomicReference<>();
-            if(!CollectionUtils.isEmpty(districts)){
-              districts.forEach(district -> {
-                  districtMap.put(district.getDistrictId(),district);
-                  if(!CollectionUtils.isEmpty(district.getHealthBlock())){
-                      blockMap.set(district.getHealthBlock().stream().collect(Collectors.toMap(block -> block.getHealthBlockId(), block -> block)));
-                  }
-                  if(!CollectionUtils.isEmpty(district.getHealthFacility())){
-                      healthFacilityMap.set(district.getHealthFacility().stream().collect(Collectors.toMap(healthFacility -> healthFacility.getHealthFacilityId(),healthFacility -> healthFacility)));
-                  }
-              });
+        List<User> userList = userRepository.findAllByLevelGreaterThanAndCreatedBy(currentLoggedInUser.get(HeaderUtils.LEVEL), currentLoggedInUser.get(HeaderUtils.USER_ID));
+            if (!CollectionUtils.isEmpty(userList)) {
+                Set<Integer> districtId = new HashSet<>();
+                Set<Integer> roleIds = new HashSet<>();
+                Set<Integer> stateIds = new HashSet<>();
+                Set<Integer> blockIds = new HashSet<>();
+                Set<Integer> facilityType = new HashSet<>();
+                Set<Integer> facilities = new HashSet<>();
+                Set<Integer> subFacilities = new HashSet<>();
+                userList.forEach(user -> {
+                    districtId.add(user.getDistrictCode());
+                    roleIds.add(user.getRoleId());
+                    stateIds.add(user.getStateId());
+                    if (!ObjectUtils.isEmpty(user.getBlockCode())) {
+                        blockIds.add(user.getBlockCode());
+                    }
+                    if (!ObjectUtils.isEmpty(user.getFacilityTypeId())) {
+                        facilityType.add(user.getFacilityTypeId());
+                    }
+                    if (!ObjectUtils.isEmpty(user.getFacilityCode())) {
+                        facilities.add(user.getFacilityCode());
+                    }
+
+                    if (!ObjectUtils.isEmpty(user.getSubFacilityCode())) {
+                        subFacilities.add(user.getSubFacilityCode());
+                    }
+
+                });
+
+                List<Role> roles = roleRepository.findAllById(roleIds);
+                Map<Integer, Role> roleMap = ConverterUtils.getRoleVsMap(roles);
+                List<State> states = stateRepository.findAllById(stateIds);
+                Map<Integer, State> stateMap = ConverterUtils.getStateMap(states);
+                userList.forEach(user -> {
+                    UserResponse userResponse = new UserResponse();
+                    userResponse.setName(user.getName());
+                    userResponse.setGmail(user.getEmail());
+                    userResponse.setMobileNumber(user.getMobileNumber());
+
+                    RoleResponse roleResponse = new RoleResponse();
+                    roleResponse.setRoleName(roleMap.get(user.getRoleId()).getRoleName());
+                    roleResponse.setRoleId(roleMap.get(user.getRoleId()).getRoleId());
+                    userResponse.setRole(roleResponse);
+
+                    StateResponse stateResponse = StateResponse.builder().build();
+                    stateResponse.setStateId(stateMap.get(user.getStateId()).getId());
+                    stateResponse.setStateName(stateMap.get(user.getStateId()).getStateName());
+                    userResponse.setStateResponse(stateResponse);
+                    userResponses.add(userResponse);
+                });
             }
-            if(!CollectionUtils.isEmpty(roleList)){
-                roleMap.set(roleList.stream().collect(Collectors.toMap(role -> role.getRoleId(),role->role)));
-            }
-            Map<Integer,Role> roleMapRes =  roleMap.get();
 
-            userList.forEach(user -> {
-                 UserResponse userResponse = new UserResponse();
-                 userResponse.setName(user.getName());
-                 userResponse.setGmail(user.getEmail());
-                 userResponse.setMobileNumber(user.getMobileNumber());
-                 RoleResponse roleResponse = new RoleResponse();
-                 roleResponse.setRoleId(roleMapRes.get(user.getRoleId()).getRoleId());
-                 roleResponse.setRoleName(roleMapRes.get(user.getRoleId()).getRoleName());
-                 userResponse.setRole(roleResponse);
-
-                DistrictResponse.DistrictData districtData = DistrictResponse.DistrictData.builder().build();
-                districtData.setDistrictId(districtMap.get(user.getDistrictId()).getDistrictId());
-                districtData.setDistrictName(districtMap.get(user.getDistrictId()).getDistrictName());
-                districtData.setDistrictCode(districtMap.get(user.getDistrictId()).getDistrictCode());
-                districtData.setMddsCode(districtMap.get(user.getDistrictId()).getMddsCode());
-                userResponse.setDistrictResponse(districtData);
-
-                StateResponse stateResponse = StateResponse.builder().build();
-                stateResponse.setStateId(districtMap.get(user.getDistrictId()).getState().getId());
-                stateResponse.setStateName(districtMap.get(user.getDistrictId()).getState().getStateName());
-                userResponse.setStateResponse(stateResponse);
-                Map<Integer,HealthFacility> healthFacilityMapRes = healthFacilityMap.get();
-
-                if(healthFacilityMapRes.containsKey(user.getFacilityId())){
-                    HealthFacilityResponse healthFacilityResponse = new HealthFacilityResponse();
-                    healthFacilityResponse.setHealthFacilityCode(healthFacilityMapRes.get(user.getFacilityId()).getHealthFacilityCode());
-                    healthFacilityResponse.setHealthFacilityId(healthFacilityMapRes.get(user.getFacilityId()).getHealthFacilityId());
-                    healthFacilityResponse.setTalukaId(healthFacilityMapRes.get(user.getFacilityId()).getTalukaId());
-                    userResponse.setHealthFacilityResponse(healthFacilityResponse);
-                }
-
-
-               Map<Integer,Block> blockMapRes =  blockMap.get();
-               if(blockMapRes.containsKey(user.getBlockId())){
-                   BlockResponse blockResponse = new BlockResponse();
-                   blockResponse.setHealthBlockId(blockMapRes.get(user.getBlockId()).getHealthBlockId());
-                   blockResponse.setDistrictId(blockMapRes.get(user.getBlockId()).getDistricts().getDistrictId());
-                   blockResponse.setMddsCode(blockMapRes.get(user.getBlockId()).getMddsCode());
-                   blockResponse.setTalukaId(blockMapRes.get(user.getBlockId()).getTalukaId());
-                   blockResponse.setHealthBlockCode(blockMapRes.get(user.getBlockId()).getHealthBlockCode());
-                   blockResponse.setHealthBlockName(blockMapRes.get(user.getBlockId()).getHealthBlockName());
-                   userResponse.setBlockResponse(blockResponse);
-
-               }
-
-
-                userResponses.add(userResponse);
-
-            });
-        }
-        return ResponseUtils.createSuccessResponse(userResponses,new TypeReference<List<UserResponse>>(){});
-    }
-
-    @Override
-    public ApiResponse<LoginResponse> login(LoginRequest loginRequest) {
-        String userName = loginRequest.getUsername();
-        String password = loginRequest.getPassword();
-        User user = userRepository.findByEmail(userName);
-        if(ObjectUtils.isEmpty(user) || (!password.equals(user.getPassword()))){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(), "incorrect username or password");
-        }
-        LoginResponse loginResponse = LoginResponse.builder().build();
-        loginResponse.setUseName(user.getName());
-        loginResponse.setToken(UUID.randomUUID().toString());
-        return ResponseUtils.createSuccessResponse(loginResponse, new TypeReference<LoginResponse>() {});
-    }
-
-
-    private void  validateBlockId(District district,UserCreateRequest userCreateRequest){
-        Set<Block> blocks = district.getHealthBlock();
-        if(CollectionUtils.isEmpty(blocks)){// throw exception
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid block");
-        }
-        Optional<Block> healthOptionalBlock = blocks.stream().filter(block -> block.getHealthBlockId()==userCreateRequest.getBlockId()).findFirst();
-        if(!healthOptionalBlock.isPresent()) {
-            // throw exception
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid block");
-        }
-    }
-
-    private void validateFacilityId(District district, UserCreateRequest userCreateRequest){
-        if(ObjectUtils.isEmpty(userCreateRequest.getFacilityId())){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid facility Id for cho role");
-        }
-        Optional<HealthFacility> healthFacilityOptional = district.getHealthFacility().stream()
-                .filter(healthFacility ->healthFacility.getHealthFacilityId()==userCreateRequest.getFacilityId()).findFirst();
-        if(!healthFacilityOptional.isPresent()){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid facility Id for cho role");
-        }
+        return ResponseUtils.createSuccessResponse(userResponses, new TypeReference<List<UserResponse>>() {});
     }
 }
+
+

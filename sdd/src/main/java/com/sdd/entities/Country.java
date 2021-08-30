@@ -19,6 +19,4 @@ public class Country {
     @Column(name = "country_name")
     private String countryName;
 
-    @OneToMany(cascade = CascadeType.ALL,mappedBy = "country")
-    private Set<State> states;
 }

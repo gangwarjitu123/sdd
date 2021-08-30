@@ -5,7 +5,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 @Builder
 @Getter
@@ -26,7 +28,5 @@ public class DistrictResponse {
         private String  districtName;
         private Integer districtCode;
         private Integer mddsCode;
-        private List<BlockResponse>  blockData;
-        private List<HealthFacilityResponse> facilityData;
     }
 }

@@ -21,6 +21,7 @@ public class RoleController {
 
     @GetMapping("/roles")
     public ResponseEntity<ApiResponse<List<RoleResponse>>> getAllRole(){
+        //token
         ApiResponse<List<RoleResponse>> roleResponseApiResponse = roleService.getAllRole();
         return new ResponseEntity<>(roleResponseApiResponse, HttpStatus.OK);
     }

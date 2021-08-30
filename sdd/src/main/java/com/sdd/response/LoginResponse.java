@@ -11,4 +11,5 @@ public class LoginResponse {
 
     private String useName;
     private String token;
+    private Integer userLevel;
 }

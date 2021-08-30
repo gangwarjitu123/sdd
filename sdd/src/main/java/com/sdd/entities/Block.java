@@ -23,16 +23,18 @@ public class Block {
     @Column(name = "health_block_name")
     private String healthBlockName;
 
-    @ManyToOne
-    @JoinColumn(name = "district_id")
-    @JsonIgnore
-    private District districts;
+
+    @Column(name = "district_Code")
+    private Integer districtCode;
 
     @Column(name = "taluka_id")
     private Integer talukaId;
 
     @Column(name = "mdds_code")
     private Integer mddsCode;
+
+    @Column(name = "state_id")
+    private Integer stateId;
 
 
 }

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.sdd.entities.Role;
 import com.sdd.entities.repository.RoleRepository;
 import com.sdd.exception.SDDException;
+import com.sdd.jwt.HeaderUtils;
+import com.sdd.jwt.JwtUtils;
 import com.sdd.request.RoleCreateRequest;
 import com.sdd.response.ApiResponse;
 import com.sdd.response.RoleResponse;
@@ -11,6 +13,7 @@ import com.sdd.service.RoleService;
 import com.sdd.utils.ResponseUtils;
 import lombok.AllArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -20,6 +23,7 @@ import javax.transaction.Transactional;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @AllArgsConstructor
@@ -27,9 +31,16 @@ public class RoleServiceImpl implements RoleService {
 
     private RoleRepository roleRepository;
 
+    private JwtUtils jwtUtils;
+
+    private HeaderUtils headerUtils;
+
     @Override
     public ApiResponse<List<RoleResponse>> getAllRole() {
-        List<Role> roleList = roleRepository.findAll();
+        String jwtToken = headerUtils.getTokeFromHeader();
+        String tokenWithUsername = jwtUtils.getUserNameFromJwtToken(jwtToken);
+        Map<String,Integer> currentLoggedInUserName = headerUtils.getUserCurrentDetails(tokenWithUsername);
+        List<Role> roleList = roleRepository.findAllByLevelGreaterThan(currentLoggedInUserName.get(HeaderUtils.LEVEL));
         List<RoleResponse> roleResponses = new ArrayList<>();
         roleList.forEach(role -> {
            RoleResponse roleResponse = new RoleResponse();
