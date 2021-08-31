@@ -12,7 +12,7 @@ import javax.persistence.*;
 public class Patient {
     @Id
     @Column(name = "id")
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer patientId;
 
     @Column(name = "age_type")
