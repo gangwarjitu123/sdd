@@ -12,6 +12,7 @@ public interface UserRepository  extends JpaRepository<User,Integer> {
 
     public User findByEmail(String email);
 
+
     List<User> findAllByLevelGreaterThanAndCreatedBy(int level,int userId);
 
     public User findByMobileNumber(String mobileNumber);

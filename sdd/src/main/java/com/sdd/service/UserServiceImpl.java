@@ -113,8 +113,8 @@ public class UserServiceImpl implements UserService{
          if(loginResponseApiResponse==null || loginResponseApiResponse.getStatus()!=200){
              throw new SDDException(HttpStatus.UNAUTHORIZED.value(),"login failed");
          }
-         if(loginResponseApiResponse.getResponse().getUserLevel()!= 0){
-             throw new SDDException(HttpStatus.UNAUTHORIZED.value(),"only admin is allow to login by app");
+         if(loginResponseApiResponse.getResponse().getUserLevel()!= 1){
+             throw new SDDException(HttpStatus.UNAUTHORIZED.value(),"only cho is allow to login by app");
          }
          User adminUserResponse = userRepository.findByEmail(loginResponseApiResponse.getResponse().getUseName());
          AdminResponse adminResponse = new AdminResponse();
@@ -137,6 +137,8 @@ public class UserServiceImpl implements UserService{
          // block data
          Block block = blockRepository.findAllByDistrictCodeAndStateIdAndHealthBlockCode(adminUserResponse.getDistrictCode(),
                  adminUserResponse.getStateId(),adminUserResponse.getBlockCode());
+
+
         adminResponse.setBlockName(block.getHealthBlockName());
         adminResponse.setBlockCode(block.getHealthBlockCode());
 
@@ -176,55 +178,61 @@ public class UserServiceImpl implements UserService{
 
     @Override
     public ApiResponse<UserResponse> createUser(UserCreateRequest userCreateRequest) {
-        String token  =  headerUtils.getTokeFromHeader();
-        String tokenWithUsername = jwtUtils.getUserNameFromJwtToken(token);
-        Map<String,Integer> currentLoggedInUser = headerUtils.getUserCurrentDetails(tokenWithUsername);
-
-        if(ObjectUtils.isEmpty(userCreateRequest.getRoleId())){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"ROLE CAN'T BE NULL");
-        }
-        Optional<Role> roleOptional = roleRepository.findById(userCreateRequest.getRoleId());
-        if(!roleOptional.isPresent()){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid role");
-        }
-        if(currentLoggedInUser.get(HeaderUtils.LEVEL)>=roleOptional.get().getLevel()){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"logged in user not allowed create this user");
-        }
-        Optional<District> optionalDistrict =  districtRepository.findByDistrictCodeAndStateId(userCreateRequest.getDistrictCode(),userCreateRequest.getStateId());
-        if(!optionalDistrict.isPresent()){
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid district");
-        }
-        Role role = roleOptional.get();
-        User user = new User();
-        //validate herirecy
-        user.setRoleId(role.getRoleId());
-        user.setLevel(role.getLevel());
-        user.setCreatedBy(currentLoggedInUser.get(HeaderUtils.USER_ID));
-        AbstractUserRegistrationHelper abstractUserRegistrationHelper =  userRegistrationFactory.getUserRegistrationHelper(role);
-        abstractUserRegistrationHelper.createUserForRegistration(userCreateRequest,user);
-        User duplicates = userRepository.findByEmail(userCreateRequest.getEmail());
-        User duplicates1 = userRepository.findByMobileNumber(userCreateRequest.getMobileNumber());
-        if(!ObjectUtils.isEmpty(duplicates) || !ObjectUtils.isEmpty(duplicates1)){
-            throw new SDDException(HttpStatus.ALREADY_REPORTED.value(), "email or phone already found in db");
-        }
         try {
-            user = userRepository.save(user);
-        }catch (Exception exception){
-            exception.printStackTrace();
-            throw new SDDException(HttpStatus.BAD_REQUEST.value(),"invalid data found in the request");
+
+            String token = headerUtils.getTokeFromHeader();
+            String tokenWithUsername = jwtUtils.getUserNameFromJwtToken(token);
+            Map<String, Integer> currentLoggedInUser = headerUtils.getUserCurrentDetails(tokenWithUsername);
+
+            if (ObjectUtils.isEmpty(userCreateRequest.getRoleId())) {
+                throw new SDDException(HttpStatus.BAD_REQUEST.value(), "ROLE CAN'T BE NULL");
+            }
+            Optional<Role> roleOptional = roleRepository.findById(userCreateRequest.getRoleId());
+            if (!roleOptional.isPresent()) {
+                throw new SDDException(HttpStatus.BAD_REQUEST.value(), "invalid role");
+            }
+            if (currentLoggedInUser.get(HeaderUtils.LEVEL) >= roleOptional.get().getLevel()) {
+                throw new SDDException(HttpStatus.BAD_REQUEST.value(), "logged in user not allowed create this user");
+            }
+            Optional<District> optionalDistrict = districtRepository.findByDistrictCodeAndStateId(userCreateRequest.getDistrictCode(), userCreateRequest.getStateId());
+            if (!optionalDistrict.isPresent()) {
+                throw new SDDException(HttpStatus.BAD_REQUEST.value(), "invalid district");
+            }
+            Role role = roleOptional.get();
+            User user = new User();
+            //validate herirecy
+            user.setRoleId(role.getRoleId());
+            user.setLevel(role.getLevel());
+            user.setCreatedBy(currentLoggedInUser.get(HeaderUtils.USER_ID));
+            AbstractUserRegistrationHelper abstractUserRegistrationHelper = userRegistrationFactory.getUserRegistrationHelper(role);
+            abstractUserRegistrationHelper.createUserForRegistration(userCreateRequest, user);
+            User duplicates = userRepository.findByEmail(userCreateRequest.getEmail());
+            User duplicates1 = userRepository.findByMobileNumber(userCreateRequest.getMobileNumber());
+            if (!ObjectUtils.isEmpty(duplicates) || !ObjectUtils.isEmpty(duplicates1)) {
+                throw new SDDException(HttpStatus.ALREADY_REPORTED.value(), "email or phone already found in db");
+            }
+            try {
+                user = userRepository.save(user);
+            } catch (Exception exception) {
+                exception.printStackTrace();
+                throw new SDDException(HttpStatus.BAD_REQUEST.value(), "invalid data found in the request");
+            }
+
+            UserResponse userResponse = new UserResponse();
+            userResponse.setGmail(user.getEmail());
+            userResponse.setMobileNumber(user.getMobileNumber());
+            userResponse.setName(user.getName());
+            RoleResponse roleResponse = new RoleResponse();
+            roleResponse.setRoleId(role.getRoleId());
+            roleResponse.setRoleName(role.getRoleName());
+            userResponse.setRole(roleResponse);
+            return ResponseUtils.createSuccessResponse(userResponse, new TypeReference<UserResponse>() {
+            });
+        }catch (Exception ex){
+            ex.printStackTrace();
+            return null;
         }
-
-        UserResponse userResponse = new UserResponse();
-        userResponse.setGmail(user.getEmail());
-        userResponse.setMobileNumber(user.getMobileNumber());
-        userResponse.setName(user.getName());
-        RoleResponse roleResponse = new RoleResponse();
-        roleResponse.setRoleId(role.getRoleId());
-        roleResponse.setRoleName(role.getRoleName());
-        userResponse.setRole(roleResponse);
-        return ResponseUtils.createSuccessResponse(userResponse, new TypeReference<UserResponse>() {});
     }
-
     @Override
     public ApiResponse<List<UserResponse>> getAllUsers() {
         String token = headerUtils.getTokeFromHeader();

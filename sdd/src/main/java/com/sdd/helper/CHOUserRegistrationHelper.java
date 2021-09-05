@@ -32,7 +32,7 @@ public class CHOUserRegistrationHelper extends AbstractUserRegistrationHelper {
     protected void fillUserDataBasedOnRole(UserCreateRequest userCreateRequest, User partialFieldUser) {
         validateBlockAndFacility(userCreateRequest);
         Block block = blockRepository.findAllByDistrictCodeAndStateIdAndHealthBlockCode(partialFieldUser.getDistrictCode(), partialFieldUser.getStateId(), userCreateRequest.getBlockCode());
-        HealthFacility healthFacility= healthFacilityRepository.findAllByStateIdAndHealthBlockCodeAndHealthFacilityTypeIdAndHealthFacilityCode(partialFieldUser.getStateId(),partialFieldUser.getBlockCode(),partialFieldUser.getFacilityTypeId(),userCreateRequest.getFacilityCode());
+        HealthFacility healthFacility= healthFacilityRepository.findAllByStateIdAndHealthBlockCodeAndHealthFacilityTypeIdAndHealthFacilityCode(userCreateRequest.getStateId(),userCreateRequest.getBlockCode(),userCreateRequest.getFacilityTypeId(),userCreateRequest.getFacilityCode());
 
         if (block == null) {
             throw new SDDException(HttpStatus.BAD_REQUEST.value(), "invalid block in request");

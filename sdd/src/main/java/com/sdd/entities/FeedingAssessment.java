@@ -45,5 +45,5 @@ public class FeedingAssessment {
     private Integer ulcerWhitePatch;
 
     @Column(name = "visit_no")
-    private Integer visitNno;
+    private Integer visitNo;
 }

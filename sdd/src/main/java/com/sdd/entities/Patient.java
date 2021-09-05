@@ -90,4 +90,6 @@ public class Patient {
     @Column(name = "year_of_age")
     private Integer yearOfAge;
 
+
+
 }

@@ -10,5 +10,6 @@ import java.util.Set;
 public interface HealthSubFacilityRepository extends JpaRepository<HealthSubFacility,Integer> {
 
     Set<HealthSubFacility> findAllByHealthFacilityCode(Integer healthFacilityCode);
+    HealthSubFacility findByHealthFacilityCodeAndHealthSubFacilityId(Integer healthFacilityCode,Integer healthSubFacilityCode);
     HealthSubFacility findByHealthFacilityCodeAndHealthFacilitySubCode(Integer healthFacilityCode,Integer healthSubFacilityCode);
 }

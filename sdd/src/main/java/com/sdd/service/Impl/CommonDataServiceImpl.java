@@ -157,7 +157,7 @@ public class CommonDataServiceImpl implements CommonDataService {
 
            for (HealthSubFacility healthSubFacility : healthSubFacilities) {
                HealthSubFacilityResponse healthSubFacilityResponse = new HealthSubFacilityResponse();
-               healthSubFacilityResponse.setHealthSubFacilityCode(healthSubFacility.getHealthSubFacilityId());
+               healthSubFacilityResponse.setHealthSubFacilityCode(healthSubFacility.getHealthFacilitySubCode());
                healthSubFacilityResponse.setHealthFacilityCenterName(healthSubFacility.getHealthSubCenterName());
                healthSubFacilityResponse.setHealthFacilityCode(healthSubFacility.getHealthFacilityCode());
                healthSubFacilityResponseList.add(healthSubFacilityResponse);

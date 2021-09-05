@@ -20,7 +20,7 @@ public class RoutineAssessment {
     private Integer patientId;
 
     @Column(name = "visit_no")
-    private Integer visitNno;
+    private Integer visitNo;
 
     @Column(name = "breath_a_Minute")
     private Integer breathAMinute;
